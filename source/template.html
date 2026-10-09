@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitSwarm: Decentralized Compounding Inference</title>
+<meta name="description" content="A swarm of identical agents shares one Git repository. Every attempt, including failed ones, is kept as a commit that later agents can read, extend, combine or challenge.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GitSwarm: Decentralized Compounding Inference">
+<meta property="og:description" content="Asynchronous agents that build on each other's work through a shared, branchable Git repository.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 24 C12 24 12 9 26 9' fill='none' stroke='%2311865e' stroke-width='2.6'/%3E%3Ccircle cx='6' cy='24' r='3.6' fill='%2314171b'/%3E%3Ccircle cx='26' cy='9' r='3.6' fill='%2311865e'/%3E%3Ccircle cx='17' cy='18' r='3' fill='%232b6cd4'/%3E%3C/svg%3E">
+<style>
+/*__FONTS__*/
+:root {
+  --bg: #ffffff;
+  --ink: #14171b;
+  --ink-2: #3a4048;
+  --muted: #69707a;
+  --faint: #a0a6ae;
+  --rule: #e2e5e9;
+  --rule-2: #eff1f4;
+  --panel: #f6f7f9;
+  --link: #1d5ebd;
+
+  --blue: #2b6cd4;
+  --purple: #7d5cc6;
+  --orange: #e2692b;
+  --pink: #d0659a;
+  --teal: #1a9e86;
+  --green: #11865e;
+  --red: #cf4a52;
+  --amber: #d39613;
+  --gray: #9aa1a9;
+
+  --serif: "Optimistic", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --sans: "Optimistic", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: Menlo, Monaco, "SF Mono", Consolas, monospace;
+
+  --text: 690px;
+  --wide: 1040px;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 17.5px/1.65 var(--sans); -webkit-font-smoothing: antialiased; }
+::selection { background: #d6e4f7; }
+a { color: var(--link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: #b7cbe8; }
+a:hover { text-decoration-color: var(--link); }
+code, .mono { font-family: var(--mono); font-size: .84em; }
+p code { background: var(--rule-2); padding: 1px 5px; border-radius: 3px; }
+b, strong { font-weight: 600; }
+[id] { scroll-margin-top: 24px; }
+
+.text { max-width: var(--text); margin: 0 auto; padding: 0 22px; }
+.wide { max-width: var(--wide); margin: 0 auto; padding: 0 22px; }
+
+/* ------------------------------------------------ header */
+header.top { padding: 72px 0 0; }
+.kicker { font: 500 13px/1.4 var(--sans); color: var(--muted); letter-spacing: .02em; margin: 0 0 22px; }
+.kicker span + span::before { content: "/"; margin: 0 10px; color: var(--faint); }
+h1 { font: 700 42px/1.1 var(--sans); letter-spacing: -.025em; margin: 0 0 14px; }
+h1 .git { color: var(--green); }
+.dek { font: 400 25px/1.32 var(--sans); color: var(--ink-2); margin: 0 0 22px; max-width: 760px; }
+.authors { font: 400 15px/1.75 var(--sans); color: var(--ink-2); max-width: 900px; }
+.authors sup, .affil sup { font-size: 9.5px; color: var(--muted); margin-left: 1px; }
+.affil { font: 400 13px/1.6 var(--sans); color: var(--muted); margin-top: 6px; max-width: 900px; }
+.links { display: flex; gap: 8px; margin: 24px 0 0; flex-wrap: wrap; }
+.links a { font: 500 13.5px/1 var(--sans); color: var(--ink); text-decoration: none; border: 1px solid #cdd2d8; border-radius: 4px; padding: 9px 14px 9px 12px; display: inline-flex; gap: 8px; align-items: center; transition: background .2s, border-color .2s; }
+.links a:hover { background: var(--panel); border-color: #aeb5be; }
+.links svg { width: 14px; height: 14px; }
+
+.swarm-wrap { margin-top: 40px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); background: #fff; }
+#swarm { display: block; width: 100%; height: 340px; }
+.swarm-key { display: flex; flex-wrap: wrap; gap: 6px 20px; font: 400 12.5px/1.3 var(--sans); color: var(--muted); padding: 10px 0 12px; }
+.swarm-key span { display: inline-flex; align-items: center; gap: 7px; }
+.swarm-key i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.swarm-key i.ag { background: #fff; box-shadow: inset 0 0 0 1.6px var(--amber); position: relative; } .swarm-key i.ag::after { content: ""; position: absolute; left: 3px; top: 3px; width: 3px; height: 3px; border-radius: 50%; background: var(--amber); }
+.swarm-key i.ring { background: #fff; box-shadow: inset 0 0 0 2px var(--green); }
+.swarm-key i.x { background: none; position: relative; border-radius: 0; }
+.swarm-key i.x::before, .swarm-key i.x::after { content: ""; position: absolute; left: 4px; top: -1px; width: 1.6px; height: 11px; background: var(--red); transform: rotate(45deg); }
+.swarm-key i.x::after { transform: rotate(-45deg); }
+.swarm-key i.dash { width: 18px; height: 0; border-radius: 0; border-top: 1.5px dashed #8a67cf; }
+
+/* ------------------------------------------------ section index (wide screens) */
+.toc { position: fixed; top: 96px; left: max(16px, calc(50% - 520px - 200px)); width: 170px; font: 400 13px/1.4 var(--sans); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 5; }
+.toc.show { opacity: 1; pointer-events: auto; }
+.toc a { display: block; color: var(--muted); text-decoration: none; padding: 5px 0 5px 12px; border-left: 1.5px solid var(--rule); transition: color .2s, border-color .2s; }
+.toc a:hover { color: var(--ink); }
+.toc a.on { color: var(--ink); border-left-color: var(--ink); }
+.toc .t { font: 700 12px/1 var(--sans); color: var(--ink); margin: 0 0 12px 12px; letter-spacing: .02em; }
+@media (max-width: 1439px) { .toc { display: none; } }
+
+/* ------------------------------------------------ type */
+section { padding: 56px 0 8px; }
+h2 { font: 700 31px/1.18 var(--sans); letter-spacing: -.02em; margin: 0 0 20px; }
+h2 .n { font: 500 15px/1 var(--sans); color: var(--faint); letter-spacing: 0; display: block; margin-bottom: 12px; }
+h3 { font: 700 20px/1.3 var(--sans); letter-spacing: -.01em; margin: 40px 0 10px; }
+p { margin: 0 0 18px; text-wrap: pretty; }
+h1, h2, h3 { text-wrap: balance; }
+.lead { font-size: 20px; line-height: 1.58; color: var(--ink-2); }
+em { font-style: italic; }
+.muted { color: var(--muted); }
+hr.sep { border: 0; border-top: 1px solid var(--rule); margin: 0; }
+
+/* key numbers */
+.numbers { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule); margin: 30px 0 10px; }
+.numbers > div { padding: 16px 18px 16px 0; }
+.numbers > div + div { padding-left: 18px; border-left: 1px solid var(--rule); }
+.numbers b { display: block; font: 700 34px/1.05 var(--sans); letter-spacing: -.03em; color: var(--ink); }
+.numbers b small { font-size: 15px; letter-spacing: 0; color: var(--muted); font-weight: 400; margin-left: 4px; }
+.numbers span { display: block; font: 400 13.5px/1.4 var(--sans); color: var(--muted); margin-top: 8px; }
+
+/* ------------------------------------------------ figures */
+figure { margin: 34px 0 40px; }
+figure.f { border-top: 1px solid var(--ink); padding-top: 12px; }
+.fhead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.fnum { font: 400 12.5px/1.3 var(--sans); color: var(--muted); letter-spacing: .02em; }
+.fnum b { color: var(--ink); font-weight: 600; margin-right: 8px; }
+figcaption { font: 400 14px/1.55 var(--sans); color: var(--muted); margin-top: 14px; max-width: 760px; }
+figcaption b { color: var(--ink-2); font-weight: 600; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text, svg.d text { font-family: var(--sans); }
+.ax text { font-size: 11px; fill: #727983; }
+.ax .ttl { font-size: 11.5px; fill: #5d646d; font-weight: 500; }
+.ax line.g { stroke: #edf0f3; }
+.ax path.b { stroke: #c5cad1; fill: none; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; align-items: start; }
+.sub-t { font: 600 14px/1.3 var(--sans); color: var(--ink); margin: 0 0 2px; }
+.sub-s { font: 400 12.5px/1.4 var(--sans); color: var(--muted); margin: 0 0 6px; }
+
+.key { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 400 12.5px/1.3 var(--sans); color: var(--ink-2); margin: 0 0 8px; }
+.key span { display: inline-flex; align-items: center; gap: 7px; transition: opacity .2s; cursor: default; }
+.key i { width: 16px; height: 0; border-top: 2.4px solid; display: inline-block; }
+.key i.dash { border-top-style: dashed; }
+.key i.sq { width: 10px; height: 10px; border: 0; border-radius: 2px; }
+.key.dim span { opacity: .3; } .key.dim span.on { opacity: 1; }
+
+.replay { font: 500 12px/1 var(--sans); color: var(--muted); background: none; border: 0; padding: 4px 0; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
+.replay:hover { color: var(--ink); }
+.replay svg { width: 11px; height: 11px; }
+
+.tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--rule); margin: 0 0 16px; flex-wrap: wrap; }
+.tabs button { font: 500 13.5px/1 var(--sans); color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 0 10px; margin-bottom: -1px; cursor: pointer; transition: color .2s, border-color .2s; }
+.tabs button:hover { color: var(--ink); }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--ink); }
+.tabs.small { border: 0; gap: 4px; margin: 0; }
+.tabs.small button { font-size: 12.5px; padding: 5px 9px; border: 1px solid transparent; border-radius: 3px; margin: 0; }
+.tabs.small button.on { border-color: #c9ced5; background: #fff; }
+
+/* paradigms */
+.para { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; }
+.para h4 { font: 600 14px/1.3 var(--sans); margin: 10px 0 3px; }
+.para p { font: 400 13.5px/1.5 var(--sans); color: var(--muted); margin: 0; }
+.para svg { display: block; width: 100%; height: auto; background: var(--panel); border-radius: 4px; }
+.para .us h4 { color: var(--green); }
+
+/* repo explorer */
+.repo-info { font: 400 13.5px/1.5 var(--sans); color: var(--ink-2); min-height: 44px; margin-top: 6px; padding: 10px 14px; background: var(--panel); border-radius: 4px; }
+.repo-info code { font-size: 12.5px; color: var(--ink); }
+svg.d .node { cursor: pointer; }
+
+/* terminals */
+.term { background: #101317; color: #cdd3db; border-radius: 6px; padding: 14px 16px 14px; font: 400 12.3px/1.55 var(--mono); overflow-x: auto; }
+.term pre { margin: 0; font: inherit; white-space: pre; }
+.term .bar { display: flex; justify-content: space-between; font: 500 11px/1 var(--mono); color: #79828e; margin: -2px 0 10px; letter-spacing: .02em; }
+.term .p { color: #7fb4ff; } .term .c { color: #e9edf2; }
+.term .k { color: #8b96a3; } .term .v { color: #f0f3f6; }
+.term .g { color: #67d0a4; } .term .y { color: #f2c96b; } .term .r { color: #f08a8f; } .term .m { color: #b9a2f5; }
+.term .ln { opacity: 0; transition: opacity .35s; display: block; }
+.term .ln.in { opacity: 1; }
+.term-note { font: 400 12.5px/1.45 var(--sans); color: var(--muted); margin-top: 8px; }
+
+/* episode stepper */
+.episode { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 26px; align-items: start; }
+.steps { list-style: none; padding: 0; margin: 0; counter-reset: s; }
+.steps li { margin: 0; }
+.steps button { width: 100%; text-align: left; background: none; border: 0; border-left: 2px solid var(--rule); padding: 9px 0 10px 16px; cursor: pointer; position: relative; font-family: var(--sans); }
+.steps button .t { display: block; font: 500 14.5px/1.3 var(--sans); color: var(--muted); transition: color .2s; }
+.steps button .s { display: block; font: 400 12.5px/1.4 var(--sans); color: var(--faint); margin-top: 2px; }
+.steps button .t::before { counter-increment: s; content: counter(s) "  "; font: 500 12px var(--mono); color: var(--faint); white-space: pre; }
+.steps button:hover .t { color: var(--ink); }
+.steps button.on { border-left-color: var(--ink); }
+.steps button.on .t { color: var(--ink); }
+.steps button.on .s { color: var(--muted); }
+.steps button i { position: absolute; left: -2px; top: 0; width: 2px; height: 0; background: var(--green); }
+.steps button.on.run i { animation: fill var(--dur, 6s) linear forwards; }
+@keyframes fill { to { height: 100%; } }
+.ep-note { font: 400 15.5px/1.55 var(--serif); color: var(--ink-2); margin: 12px 0 0; min-height: 72px; }
+.episode .term { min-height: 270px; }
+
+/* actions */
+.acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin: 22px 0 8px; }
+.acts > div { padding: 18px 20px 18px 0; }
+.acts > div + div { padding-left: 20px; border-left: 1px solid var(--rule); }
+.acts svg { width: 100%; max-width: 190px; height: 64px; display: block; margin-bottom: 10px; }
+.acts h4 { font: 600 15.5px/1.3 var(--sans); margin: 0 0 6px; }
+.acts p { font: 400 14px/1.5 var(--sans); color: var(--ink-2); margin: 0; }
+.acts .budget { display: block; font: 500 12px/1.3 var(--sans); color: var(--muted); margin-top: 10px; }
+
+/* setup */
+.setup { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-top: 1px solid var(--ink); margin: 26px 0 10px; }
+.setup > div { padding: 18px 24px 8px 0; }
+.setup > div + div { padding-left: 24px; border-left: 1px solid var(--rule); }
+.setup h4 { font: 600 16px/1.3 var(--sans); margin: 0 0 10px; }
+.setup dl { margin: 0; font: 400 14.5px/1.5 var(--sans); }
+.setup dt { font: 600 12px/1.3 var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); letter-spacing: .02em; margin: 12px 0 3px; }
+.setup dd { margin: 0; color: var(--ink-2); }
+
+/* compounding stats */
+.facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin: 26px 0 10px; }
+.facts > div { padding: 16px 16px 16px 0; }
+.facts > div + div { padding-left: 16px; border-left: 1px solid var(--rule); }
+.facts b { display: block; font: 700 22px/1.15 var(--sans); letter-spacing: -.01em; }
+.facts span { display: block; font: 400 13px/1.45 var(--sans); color: var(--muted); margin-top: 6px; }
+
+/* research */
+.tasks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: 22px 0 6px; border-top: 1px solid var(--rule); }
+.tasks button { text-align: left; background: none; border: 0; border-bottom: 1px solid var(--rule); padding: 16px 18px 16px 0; cursor: pointer; font-family: var(--sans); position: relative; transition: background .2s; }
+.tasks button + button { padding-left: 18px; border-left: 1px solid var(--rule); }
+.tasks button::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: transparent; transition: background .2s; }
+.tasks button.on::after { background: var(--ink); }
+.tasks .mode { display: block; font: 600 12px/1.3 var(--sans); color: var(--green); letter-spacing: .02em; margin-bottom: 6px; }
+.tasks .name { display: block; font: 600 16px/1.3 var(--sans); color: var(--muted); transition: color .2s; }
+.tasks button.on .name, .tasks button:hover .name { color: var(--ink); }
+.tasks .what { display: block; font: 400 13px/1.45 var(--sans); color: var(--muted); margin-top: 4px; }
+.res-head { display: flex; gap: 28px; flex-wrap: wrap; margin: 18px 0 6px; }
+.res-head div { font: 400 13px/1.4 var(--sans); color: var(--muted); }
+.res-head b { display: block; font: 700 25px/1.15 var(--sans); color: var(--ink); letter-spacing: -.02em; }
+.res-head b.gs { color: var(--blue); }
+.res-sub { font: 600 14px/1.3 var(--sans); margin: 26px 0 4px; }
+.story-text { font-size: 17px; line-height: 1.6; color: var(--ink-2); margin: 14px 0 0; max-width: 760px; }
+.story-text p { margin: 0 0 12px; }
+.res-note { font: 400 13px/1.5 var(--sans); color: var(--muted); margin: 4px 0 0; }
+
+.behaviors { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; margin: 20px 0 6px; }
+.behaviors article { padding: 18px 0 16px; border-top: 1px solid var(--rule); }
+.behaviors .tag { font: 600 12px/1.3 var(--sans); color: var(--muted); letter-spacing: .02em; }
+.behaviors h4 { font: 600 16.5px/1.3 var(--sans); margin: 6px 0 6px; }
+.behaviors p { font-size: 16px; line-height: 1.55; color: var(--ink-2); margin: 0; }
+.behaviors .fig-mini { margin-top: 10px; }
+
+ul.plain { padding-left: 20px; margin: 0 0 18px; }
+ul.plain li { margin-bottom: 8px; padding-left: 4px; }
+ul.plain li::marker { color: var(--faint); }
+
+pre.bib { background: var(--panel); border-radius: 4px; padding: 16px 18px; font: 400 12.5px/1.6 var(--mono); color: var(--ink-2); overflow-x: auto; margin: 0; }
+footer { padding: 56px 0 72px; font: 400 13px/1.6 var(--sans); color: var(--muted); }
+
+.rv { opacity: 0; transform: translateY(8px); transition: opacity .7s ease, transform .7s ease; }
+.rv.in { opacity: 1; transform: none; }
+
+@media (max-width: 880px) {
+  body { font-size: 17.5px; }
+  h1 { font-size: 30px; }
+  .dek { font-size: 21px; }
+  .grid2, .para, .episode, .setup, .behaviors { grid-template-columns: minmax(0, 1fr); }
+  .setup > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--rule); }
+  .numbers, .facts { grid-template-columns: 1fr 1fr; }
+  .numbers > div:nth-child(3), .facts > div:nth-child(3) { padding-left: 0; border-left: 0; }
+  .numbers > div:nth-child(n+3), .facts > div:nth-child(n+3) { border-top: 1px solid var(--rule); }
+  .acts, .tasks { grid-template-columns: minmax(0, 1fr); }
+  .acts > div + div, .tasks button + button { padding-left: 0; border-left: 0; border-top: 1px solid var(--rule); }
+  #swarm { height: 280px; }
+  .steps { display: flex; overflow-x: auto; gap: 0; }
+  .steps button { border-left: 0; border-bottom: 2px solid var(--rule); padding: 8px 14px 8px 0; min-width: 150px; }
+  .steps button.on { border-bottom-color: var(--ink); }
+  .steps button i { display: none; }
+  .steps button .s { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .rv { opacity: 1; transform: none; transition: none; }
+}
+</style>
+</head>
+<body>
+
+<nav class="toc" aria-label="Sections">
+  <div class="t">GitSwarm</div>
+  <a href="#why">Why compounding</a>
+  <a href="#system">How it works</a>
+  <a href="#setup">Experimental setup</a>
+  <a href="#benchmarks">ProgramBench &amp; proofs</a>
+  <a href="#inside">Does work compound?</a>
+  <a href="#research">AutoResearch</a>
+  <a href="#behaviors">Research behaviors</a>
+  <a href="#takeaways">Takeaways</a>
+</nav>
+
+<header class="top">
+  <div class="wide">
+    <p class="kicker"><span>arXiv:2610.04862</span><span>October 2026</span></p>
+    <h1>GitSwarm: Decentralized Compounding Inference</h1>
+    <p class="dek">Many agents, one shared repository, and work that keeps building on itself.</p>
+    <div class="authors">
+      Vedant Shah<sup>1,2,3</sup>, Ankur Samanta<sup>1,4</sup>, Paras Dahal<sup>1</sup>, Mikhail Plekhanov<sup>1</sup>, Carole-Jean Wu<sup>1</sup>, Scott Yih<sup>1</sup>,
+      Remi Munos<sup>1</sup>, Rob Fergus<sup>1</sup>, Jakob Foerster<sup>1</sup>, Ruslan Salakhutdinov<sup>5,∗</sup>, Sanjeev Arora<sup>6,∗</sup>, Jason Weston<sup>1</sup>,
+      Aaron Courville<sup>2,3</sup>, Anirudh Goyal<sup>1</sup>
+    </div>
+    <div class="affil"><sup>1</sup>Meta Superintelligence Labs &nbsp; <sup>2</sup>Mila – Québec AI Institute &nbsp; <sup>3</sup>Université de Montréal &nbsp; <sup>4</sup>Columbia University &nbsp; <sup>5</sup>Carnegie Mellon University &nbsp; <sup>6</sup>Princeton University &nbsp; <sup>∗</sup>Work done at Meta</div>
+    <div class="links">
+      <a href="https://arxiv.org/abs/2610.04862"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 1.8h5.5l3 3v9.4H4z"/><path d="M9.3 1.8v3.2h3.2M6 8.2h4.6M6 10.8h4.6"/></svg>Paper</a>
+      <a href="https://arxiv.org/pdf/2610.04862"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2v8.5M4.6 7.3 8 10.7l3.4-3.4M3 13.5h10"/></svg>PDF</a>
+      <a href="#cite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4h10M3 8h10M3 12h6"/></svg>BibTeX</a>
+    </div>
+  </div>
+  <div class="swarm-wrap">
+    <canvas id="swarm" aria-label="Animation: worker agents read a shared commit graph and publish new commits that build on earlier ones"></canvas>
+    <div class="wide">
+      <div class="swarm-key">
+        <span><i class="ag"></i>worker episode (spawns, contributes, exits)</span>
+        <span><i style="background:var(--blue)"></i>draft</span>
+        <span><i style="background:var(--amber)"></i>repair</span>
+        <span><i style="background:var(--purple)"></i>verification</span>
+        <span><i class="x"></i>refuted</span>
+        <span><i class="ring"></i>integration</span>
+        <span><i class="dash"></i>semantic inheritance</span>
+        <span><i style="background:var(--green)"></i>final answer and its ancestry</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section id="summary" style="padding-top:44px">
+  <div class="text rv">
+    <p class="lead">Difficult long-horizon problems are rarely solved in one attempt. Partial solutions, experiments and even failed ideas often turn out to be useful later, but most ways of spending inference compute throw them away when an attempt ends. We call the alternative <em>compounding inference</em>: organizing inference-time computation so that intermediate work persists and can be inspected, extended, combined or challenged by later computation.</p>
+    <p>GitSwarm puts this idea into practice. A pool of identical agents works asynchronously on a shared, branchable Git repository. No one hands out tasks: each agent reads what exists, decides for itself what would help most, and publishes its work as a commit that records which earlier commits it built on.</p>
+  </div>
+</section>
+
+<section id="why">
+  <div class="text rv">
+    <h2>Why compounding inference?</h2>
+    <p>Most ways of giving a model more compute at inference time treat attempts as disposable. You can sample many answers and keep the best one, or let one agent reason for longer inside a single context. Either way, when an attempt ends, almost everything it worked out ends with it.</p>
+    <p>On long-horizon problems, though, the value of intermediate work is often unclear when it is produced. A failed experiment can point to a better direction. A partial proof can contain the lemma someone needs ten attempts later. Two half-working programs can be worth more combined than either one alone. If this work disappears, later attempts have to rediscover it. If it is kept, later attempts can build on it.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-para">
+      <div class="fhead"><span class="fnum"><b>Figure 1</b>Three ways to spend more inference compute</span><button class="replay" data-replay="para"></button></div>
+      <div class="para">
+        <div><svg id="para-a" viewBox="0 0 300 150"></svg><h4>Independent attempts</h4><p>Many samples in parallel. One is picked and the rest are discarded, including any useful pieces they contain.</p></div>
+        <div><svg id="para-b" viewBox="0 0 300 150"></svg><h4>One long trajectory</h4><p>A single agent keeps going. Earlier work survives only as long as it fits, and stays useful, in one context.</p></div>
+        <div class="us"><svg id="para-c" viewBox="0 0 300 150"></svg><h4>Compounding (GitSwarm)</h4><p>Every attempt persists as a commit. Later work extends, verifies, combines or refutes it, across branches.</p></div>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section id="system">
+  <div class="text rv">
+    <h2>How GitSwarm works</h2>
+    <p>GitSwarm has three parts: a shared Git repository that acts as the swarm's memory, a pool of identical workers that each choose their own next move, and a light execution harness that schedules workers, isolates them, and validates what they publish. There is no planner, no assigned roles and no privileged final judge.</p>
+
+    <h3>The repository is the memory</h3>
+    <p>Each task starts as a repository containing the task specification. Every piece of work a worker publishes becomes one atomic, immutable commit: a draft solution, a test, an experiment and its result, a repair, or a negative finding. Branches let competing approaches grow side by side, so the swarm never has to commit to one direction too early.</p>
+    <p>Each commit records two kinds of history. Its <b>Git parent</b> is the state the worker started from. Its <code>informed_by=</code> field lists the other commits the worker relied on, including commits on other branches. We call this second link <b>semantic inheritance</b>: it lets a worker build on one branch while borrowing a discovery from another, without merging. Following both links backwards from any commit gives its <b>ancestry</b>: all the earlier work it builds on.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-repo">
+      <div class="fhead"><span class="fnum"><b>Figure 2</b>A small GitSwarm repository. Click any commit to trace its ancestry.</span><button class="replay" data-replay="repo"></button></div>
+      <div class="key">
+        <span><i style="border-color:#59616b"></i>Git parent</span>
+        <span><i class="dash" style="border-color:#8a67cf"></i>semantic inheritance</span>
+        <span><i style="border-color:var(--green)"></i>ancestry of the selected commit</span>
+      </div>
+      <div class="chart" id="repo"></div>
+      <div class="repo-info" id="repo-info"></div>
+    </figure>
+  </div>
+
+  <div class="text rv">
+    <h3>Identical workers, no manager</h3>
+    <p>Every worker runs the same model with the same instructions. Nobody is told to be a solver, a verifier or an integrator. Each worker looks at the repository and decides what would add the most value right now. Specialization, when it appears, comes from the state of the repository: early workers write first drafts because nothing exists yet, and later ones repair, test, combine and compare. We return to this <a href="#inside">below</a>.</p>
+
+    <h3>Asynchronous execution</h3>
+    <p>The harness keeps up to <i>C</i> workers running at once (five in our benchmark runs) and launches a replacement whenever a slot frees up, until a budget of <i>B</i> worker episodes is spent. Workers never wait for each other, so a commit is visible to every worker that starts after it is published.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-async">
+      <div class="fhead"><span class="fnum"><b>Figure 3</b>Twenty worker episodes on five slots, with the same episode durations in both modes</span><button class="replay" data-replay="async"></button></div>
+      <div class="grid2">
+        <div><p class="sub-t">Asynchronous</p><p class="sub-s">a new worker starts as soon as a slot frees up</p><div class="chart" id="async-a"></div></div>
+        <div><p class="sub-t">Synchronized waves</p><p class="sub-s">every worker waits for the slowest member of its wave (dotted)</p><div class="chart" id="async-s"></div></div>
+      </div>
+      <figcaption>Each bar is one worker episode; dots mark when its commit becomes visible to later workers. On nine ProgramBench development tasks, asynchronous runs finished in <b>38.0</b> minutes on average versus <b>49.3</b> for synchronized waves, with similar scores.</figcaption>
+    </figure>
+  </div>
+
+  <div class="text rv">
+    <h3>Seeing the live swarm</h3>
+    <p>Work that hasn't been committed yet is invisible in Git, so workers get two read-only views of the live run. Every worker receives a snapshot of the <b>dashboard</b> when it spawns, and can fetch an up-to-date one at any time by running <code>gs_dashboard</code>. It shows the remaining budget, how many workers are in flight, and the nomination tally, which is explicitly labelled as not being evidence of correctness; in research runs it shows shared GPU usage and the best validation score instead. To see what other workers are doing right now, a worker runs <code>gs_inflight</code>: it lists the workers in flight, and <code>gs_inflight inspect</code> shows one worker's public log of what it announced it would do, its progress updates, and its uncommitted changes. Each worker writes to this log itself, so others can avoid duplicating its work. Neither view assigns work.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-live">
+      <div class="fhead"><span class="fnum"><b>Figure 4</b>What a worker sees: dashboard and a peer's in-flight log (abridged from real traces)</span></div>
+      <div class="grid2">
+        <div class="term" data-type><div class="bar"><span>gs_dashboard</span><span>shared state</span></div><pre><span class="ln"><span class="p">$</span> <span class="c">gs_dashboard</span></span><span class="ln k">=== Git-Swarm dashboard ===</span><span class="ln"><span class="k">Total worker budget:</span>          <span class="v">200</span></span><span class="ln"><span class="k">Remaining worker budget:</span>      <span class="v">101</span></span><span class="ln"><span class="k">Workers currently in flight:</span>  <span class="v">5</span></span><span class="ln"><span class="k">Nomination workers in flight:</span> <span class="v">0</span></span><span class="ln"><span class="k">Total valid nominations made:</span> <span class="v">7</span></span><span class="ln k">Nominated commits and vote counts</span><span class="ln k">  (selection state; not correctness evidence):</span><span class="ln">  <span class="y">7ce10344e6db</span>: 2 nominations</span><span class="ln">  <span class="y">1e5a9adb44da</span>: 1 nomination  <span class="k">...</span></span><span class="ln k">--- research tasks show instead ---</span><span class="ln"><span class="k">GPUs:</span> 6/8 allocated (75.0%; 2 available)</span><span class="ln"><span class="k">Jobs:</span> 2 running, 0 starting, 11 queued</span><span class="ln"><span class="r">WARNING:</span> Resource usage below target</span><span class="ln"><span class="k">Best protected dev:</span> <span class="g">val_loss=3.9004</span>  <span class="k">commit 1d9edbb</span></span></pre></div>
+        <div class="term" data-type><div class="bar"><span>gs_inflight inspect</span><span>peer activity</span></div><pre><span class="ln"><span class="p">$</span> <span class="c">gs_inflight inspect w0101</span></span><span class="ln k">=== In-flight worker detail ===</span><span class="ln">peer <span class="v">w0101</span>  head=<span class="y">9ac922c47c87</span></span><span class="ln k">  branch=agent/w0101/word-boundary-regex-escapes</span><span class="ln"> </span><span class="ln"><span class="k">06:06:07</span> <span class="m">announce</span>  targets=<span class="y">9ac922c</span></span><span class="ln">  Gap: regex candidates diverge on doubled</span><span class="ln">  word-boundary escapes | Deliverable: 9ac922c-</span><span class="ln">  based normalizer | Success: differential</span><span class="ln">  checks | Abort: if this exact refinement is</span><span class="ln">  already published</span><span class="ln"><span class="k">06:08:39</span> <span class="m">update</span>  Implemented a localized escape</span><span class="ln">  normalizer; narrowing probes ...</span><span class="ln"><span class="k">06:09:16</span> <span class="m">update</span>  py_compile and compile.sh pass.</span><span class="ln"><span class="k">working tree:</span>  <span class="g">M ambr.py  (+36 lines)</span></span></pre></div>
+      </div>
+    </figure>
+  </div>
+
+  <div class="text rv">
+    <h3>Anatomy of one episode</h3>
+    <p>A worker episode is one agent run from spawn to exit, inside its own isolated Git worktree. The prompt asks it to understand the existing work before acting, to scope one bounded contribution, and to say up front what would make it give up.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-episode">
+      <div class="fhead"><span class="fnum"><b>Figure 5</b>One worker's episode, step by step (a constructed example; commit IDs and outputs are illustrative)</span></div>
+      <div class="episode">
+        <ol class="steps" id="steps"></ol>
+        <div>
+          <div class="term"><div class="bar"><span id="ep-title">worker w0101</span><span>isolated worktree</span></div><pre id="ep-term"></pre></div>
+          <p class="ep-note" id="ep-note"></p>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <div class="text rv">
+    <h3>Three ways to end an episode</h3>
+    <p>Every episode ends with exactly one of three actions. Validation checks only that a commit follows the task's publication rules (required files, allowed paths), not that it is correct.</p>
+  </div>
+  <div class="wide rv">
+    <div class="acts">
+      <div>
+        <svg viewBox="0 0 190 64" id="act-c"></svg>
+        <h4>Contribute</h4>
+        <p>Publish one validated, atomic commit with new work: a partial solution, an experiment, a test, a repair, or a synthesis of several branches.</p>
+        <span class="budget">uses one unit of budget</span>
+      </div>
+      <div>
+        <svg viewBox="0 0 190 64" id="act-n"></svg>
+        <h4>Nominate</h4>
+        <p>Cast the worker's vote for an existing commit to be the final output, by publishing a separate nomination record with a written rationale. The commit itself is not changed.</p>
+        <span class="budget">uses one unit of budget</span>
+      </div>
+      <div>
+        <svg viewBox="0 0 190 64" id="act-a"></svg>
+        <h4>Abstain</h4>
+        <p>Exit without publishing when nothing useful is left to add, or when equivalent work is already done or underway.</p>
+        <span class="budget">replaced, does not use budget</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="text rv">
+    <h3>Decentralized readout</h3>
+    <p>Eventually the swarm has to decide which commit is its answer. Rather than handing this to a privileged judge, GitSwarm leaves it to the workers too. Nominations are stored outside the commit graph, so workers can evaluate candidates while others keep building new ones, without changing anyone's ancestry. When the budget runs out, the candidate with the most nominations is submitted, with ties broken deterministically. For the research tasks, which have a validation score, the best-scoring model is selected instead.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-readout">
+      <div class="fhead"><span class="fnum"><b>Figure 6</b>Nominations accumulate while the run continues; the most-nominated candidate is submitted</span><button class="replay" data-replay="readout"></button></div>
+      <div class="chart" id="readout"></div>
+    </figure>
+  </div>
+</section>
+
+<section id="setup">
+  <div class="text rv">
+    <h2>Experimental setup</h2>
+    <p>We test GitSwarm in two settings: long-horizon problems with a well-defined, checkable answer, and open-ended research, where the workers must also decide which experiments are worth running.</p>
+  </div>
+  <div class="wide rv">
+    <div class="setup">
+      <div>
+        <h4>Long-horizon problem solving</h4>
+        <dl>
+          <dt>IMOProofBench-Advanced</dt><dd>30 olympiad-level proof problems; we count fully correct proofs.</dd>
+          <dt>ProgramBench</dt><dd>Rebuild a program from its documentation and an execute-only reference binary, scored on hidden tests. 50-task stratified subset.</dd>
+          <dt>Workers</dt><dd>Codex (GPT-5.5-high), base GPT-5.5, Gemini 3.1 Pro. Five concurrent workers. Budgets of 100–500 episodes (programs) and 20–160 (proofs).</dd>
+          <dt>Baseline</dt><dd><i>Forced</i> single agents with the same model, prompted to continue every time they stop, compared at similar token usage.</dd>
+        </dl>
+      </div>
+      <div>
+        <h4>Sustained research (AutoResearch)</h4>
+        <dl>
+          <dt>Tasks</dt><dd>Improve three models under fixed rules and a fixed metric: the Residual Matrix Transformer and Looped Transformer (architecture changes only), and NanoChat (architecture, optimizer and training code).</dd>
+          <dt>Workers</dt><dd>12–20 workers sharing a fixed pool of GPUs through a SLURM scheduler, for 24–72 hours: Codex workers with GPT-5.6 Sol (RMT) or GPT-5.5 (Looped Transformer), and GPT-6 Astra or GPT-5.6 Sol workers on NanoChat.</dd>
+          <dt>Selection</dt><dd>Nomination is turned off; the best validation score is selected and, where available, checked on a held-out set.</dd>
+          <dt>Baselines</dt><dd>Single agents with the same model, GPUs and time, plus an evolutionary search baseline on NanoChat.</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="benchmarks">
+  <div class="text rv">
+    <h2>Results on ProgramBench and IMOProofBench</h2>
+    <p><b>ProgramBench.</b> With Codex workers, GitSwarm improves from 73.1% at 100 worker episodes to 79.4% at 500. The forced single Codex agent stays between 63.1% and 65.1% however long it is pushed. With base GPT-5.5 workers, GitSwarm improves from 64.6% to 71.2%. Gains shrink at larger budgets, and input tokens grow because each worker reads a larger repository.</p>
+    <p><b>IMOProofBench-Advanced.</b> With Gemini 3.1 Pro workers, GitSwarm goes from 23.3 to 29.0 fully correct proofs as the budget grows from 20 to 160 workers (with a local dip at 80). The best forced baseline reaches 26.5. With GPT-5.5 workers, a single run solves all 30 problems at budgets of 40 and 80. Best-of-N sampling with an oracle verifier also reaches this ceiling, so solving all 30 is not, by itself, an advantage unique to GitSwarm.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-scaling">
+      <div class="fhead"><span class="fnum"><b>Figure 7</b>Performance against inference compute (input tokens)</span><button class="replay" data-replay="scaling"></button></div>
+      <div class="grid2">
+        <div>
+          <p class="sub-t">ProgramBench</p><p class="sub-s">Mean test score, 50 tasks</p>
+          <div class="key" id="key-pb"></div>
+          <div class="chart" id="chart-pb"></div>
+        </div>
+        <div>
+          <p class="sub-t">IMOProofBench-Advanced · Gemini 3.1 Pro</p><p class="sub-s">Fully correct proofs, of 30</p>
+          <div class="key" id="key-imo"></div>
+          <div class="chart" id="chart-imo"></div>
+        </div>
+      </div>
+      <figcaption>Each GitSwarm point is one run at the labelled worker budget <i>B</i>. Baseline points are the natural stopping checkpoints of a single agent that is repeatedly told to continue. Tokens are summed over all requests per task (left) or per problem (right).</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="inside">
+  <div class="text rv">
+    <h2>Does the work actually compound?</h2>
+    <p>A higher score could simply come from running more agents. To check whether later work really builds on earlier work, we looked inside the repositories from the benchmark runs: what workers cite, which files they open and run, and what ends up in the selected solution.</p>
+  </div>
+  <div class="wide rv">
+    <div class="facts">
+      <div><b>99.9% / 96.2%</b><span>of eligible episodes cite earlier work (ProgramBench / proofs)</span></div>
+      <div><b>94.7% / 44.4%</b><span>of contributions are later built on by other workers</span></div>
+      <div><b>82–93% / 21–33%</b><span>of a run's commits lie in the selected solution's ancestry</span></div>
+      <div><b>~80% / 583 of 759</b><span>voluntary artifacts actively reused / probe bundles opened by later workers</span></div>
+    </div>
+  </div>
+
+  <div class="text rv">
+    <h3>The selected solution builds on earlier work</h3>
+    <p>In both benchmarks, the selected solution builds on work that earlier workers published, but how much of a run it draws on differs. On ProgramBench its ancestry covers 82–93% of the commits in a run, and only about a quarter of that comes in through Git parents; most of the rest arrives through semantic inheritance across branches. On IMOProofBench the selected proofs reach 21–33% of the graph: good proofs tend to appear early, and later workers mostly check and compare candidates rather than extend them. That checking still uses earlier work, and it decides which proof is selected, even though it is not part of the proof's ancestry.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-ffmpeg">
+      <div class="fhead"><span class="fnum"><b>Figure 8</b>Every commit in one ProgramBench run (FFmpeg, <i>B</i>&nbsp;=&nbsp;100), over normalized runtime</span><button class="replay" data-replay="ffmpeg"></button></div>
+      <div class="key">
+        <span><i class="sq" style="background:var(--green)"></i>in the selected winner's ancestry</span>
+        <span><i class="sq" style="background:#cfd3d8"></i>outside it</span>
+        <span id="ffmpeg-count" style="margin-left:auto;font:500 13px var(--mono);color:var(--ink)"></span>
+      </div>
+      <div class="chart" id="ffmpeg"></div>
+    </figure>
+    <figure class="f" id="fig-anc">
+      <div class="fhead"><span class="fnum"><b>Figure 9</b>Share of the contribution graph in the selected solution's ancestry, by worker budget</span><button class="replay" data-replay="anc"></button></div>
+      <div class="key">
+        <span><i class="sq" style="background:#2c5f9e"></i>via Git parents</span>
+        <span><i class="sq" style="background:#8fbbe9"></i>added via semantic inheritance</span>
+        <span><i class="sq" style="background:#e4e6e9"></i>outside the ancestry</span>
+      </div>
+      <div class="chart" id="anc"></div>
+    </figure>
+  </div>
+
+  <div class="text rv">
+    <h3>Workers autonomously adopt roles</h3>
+    <p>We labelled every worker episode with its main activity after the run. On ProgramBench, a short wave of workers creates first versions; after that, adding missing features, fixing behavior and combining candidates continue right to the end, and nominations pick up only near the end. The selected program usually first appears at 93–98% of the way through a run. Proof runs shift much earlier: once good candidates exist, more and more workers check and select among them instead of writing new proofs. About one in six ProgramBench workers abstains after finding that equivalent work already exists.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-activity">
+      <div class="fhead"><span class="fnum"><b>Figure 10</b>What workers spend their episodes on, over the course of a run</span><button class="replay" data-replay="activity"></button></div>
+      <div class="grid2">
+        <div><p class="sub-t">ProgramBench</p><p class="sub-s">Codex workers, one panel per worker budget</p><div class="key" id="key-act-pb"></div><div class="chart" id="activity-pb"></div></div>
+        <div><p class="sub-t">IMOProofBench-Advanced</p><p class="sub-s">Gemini 3.1 Pro workers, one panel per worker budget</p><div class="key" id="key-act-imo"></div><div class="chart" id="activity-imo"></div></div>
+      </div>
+      <figcaption>Share of worker episodes by primary activity against worker-spawn progress. The dark line marks the top of all commit-producing activities.</figcaption>
+    </figure>
+  </div>
+
+  <div class="text rv">
+    <h3>Different problems, different workflows</h3>
+    <p>The same protocol produces quite different collaboration patterns depending on the problem. In the <i>delta</i> run, separate branches improve different parts of the program and are combined late into one strong integration that the winner builds on. In the <i>cheat</i> run, workers spend the first third on command-line and configuration behavior, then pivot to output renderers after a burst of renderer experiments, and the renderer line becomes the winner.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-flow">
+      <div class="fhead"><span class="fnum"><b>Figure 11</b>Commit graphs from two ProgramBench runs, over normalized runtime</span><button class="replay" data-replay="flow"></button></div>
+      <div class="grid2">
+        <div><p class="sub-t">Late integration</p><p class="sub-s">delta, <i>B</i>&nbsp;=&nbsp;100</p><div class="key" id="key-flow-delta"></div><div class="chart" id="flow-delta"></div></div>
+        <div><p class="sub-t">Search and pivot</p><p class="sub-s">cheat, <i>B</i>&nbsp;=&nbsp;500</p><div class="key" id="key-flow-cheat"></div><div class="chart" id="flow-cheat"></div></div>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section id="research">
+  <div class="text rv">
+    <h2>AutoResearch: running a research program</h2>
+    <p>Benchmarks have fixed answers. Research does not: workers must choose experiments, run them on shared GPUs, interpret noisy results and decide what to try next. We gave GitSwarm three research tasks, built on the Residual Matrix Transformer (<a href="https://arxiv.org/abs/2506.22696">Mak &amp; Flanigan, 2025</a>), the Looped Transformer Huginn (<a href="https://arxiv.org/abs/2502.05171">Geiping et al., 2025</a>) and NanoChat (<a href="https://github.com/karpathy/nanochat">Karpathy, 2025</a>; we start from the <a href="https://github.com/karpathy/autoresearch">autoresearch</a> setup). In each one, workers start from a published model and must improve it under fixed rules: architecture changes only for the Residual Matrix Transformer and the Looped Transformer, and architecture, optimizer and training code together for NanoChat. They submit training jobs to a shared GPU queue much like a research group would. Code, results and notes all persist in the repository.</p>
+    <p>Each task also illustrates a different way the research compounded.</p>
+  </div>
+  <div class="wide rv">
+    <figure class="f" id="fig-research">
+      <div class="fhead"><span class="fnum"><b>Figure 12</b>Best-so-far validation loss, and how the final model came about</span><button class="replay" data-replay="research"></button></div>
+      <div class="tasks" id="task-tabs">
+        <button class="on" data-t="rmt"><span class="mode">integrating branches</span><span class="name">Residual Matrix Transformer</span><span class="what">Swaps the residual stream for a matrix memory. ≤350M parameters, same 1.3B training tokens as the reference. 12 workers, 72 h.</span></button>
+        <button data-t="looped"><span class="mode">overturning a verdict</span><span class="name">Looped Transformer</span><span class="what">Runs one weight-tied block repeatedly. ≤350M unique parameters. 12 workers, first 26 h of a 48 h run.</span></button>
+        <button data-t="nanochat"><span class="mode">recovering failures</span><span class="name">NanoChat</span><span class="what">A small GPT trained for five minutes per candidate; architecture, optimizer and training code may all change. 20 workers, 24 h.</span></button>
+      </div>
+      <div class="res-head" id="res-head"></div>
+      <div class="key" id="key-res"></div>
+      <div class="chart" id="chart-res"></div>
+      <p class="res-note" id="res-note"></p>
+      <p class="res-sub">How the final model came about</p>
+      <div class="key" id="key-story">
+        <span><i style="border-color:var(--green)"></i>lineage of the final model</span>
+        <span><i class="sq" style="background:var(--blue);border-radius:50%"></i>developed on a side branch</span>
+        <span><i class="sq" style="background:var(--red);border-radius:50%"></i>failed / refuted</span>
+        <span><i class="sq" style="background:#fff;box-shadow:inset 0 0 0 2px var(--amber);border-radius:50%"></i>doubted / inconclusive</span>
+        <span><i class="dash" style="border-color:var(--purple)"></i>reuses an earlier failure</span>
+        <span><i class="dash" style="border-color:#9aa1a9"></i>code or evidence reused</span>
+      </div>
+      <div class="chart" id="story"></div>
+      <div class="story-text" id="story-text"></div>
+    </figure>
+  </div>
+
+  <div class="text rv" id="behaviors">
+    <h3>Research behaviors we did not program</h3>
+    <p>Reading the research histories turned up behaviors that no prompt asked for explicitly. A few that stood out, with details in Appendix E of the paper:</p>
+  </div>
+  <div class="wide rv">
+    <div class="behaviors">
+      <article>
+        <span class="tag">Residual Matrix Transformer</span>
+        <h4>A failure, revived 49.5 hours later</h4>
+        <p>Letting each token see the previous token's memory state failed. Two days later, another worker cited that failure as evidence that longer look-backs were still unexplored, built a mixer over several earlier tokens, and it entered the submitted model.</p>
+      </article>
+      <article>
+        <span class="tag">Looped Transformer</span>
+        <h4>Auditing their own yardstick</h4>
+        <p>After a 128-example check nearly killed the winning idea, a worker measured how often small evaluations misrank models: 5 of 12 pairs. The swarm then adopted a 128 → 512 → 4,873 example evaluation funnel, and shared proxy setups were reused by 257 commits.</p>
+      </article>
+      <article>
+        <span class="tag">All three tasks</span>
+        <h4>Negative results are not thrown away</h4>
+        <p>Workers publish experiments that didn't work, labelled as such, and others cite them: 74% of negative architectural results in the Looped Transformer run and 70% in NanoChat were cited by later contributions, often to rule out a direction or build a control.</p>
+      </article>
+      <article>
+        <span class="tag">Residual Matrix Transformer</span>
+        <h4>Breadth that single agents lacked</h4>
+        <p>The swarm explored 19 families of ideas and kept trying new ones throughout. The single Codex agent opened no new line of ideas after 26.5 hours, and the direct GPT agent spent 68% of its GPU time on a single family.</p>
+      </article>
+      <article>
+        <span class="tag">NanoChat · Looped Transformer</span>
+        <h4>Checking each other's work</h4>
+        <p>A worker re-ran an identical configuration and turned an apparent win into a near-tie; the next worker cited that and chose a different change. In the Looped run, four workers independently ran parameter-matched controls, and a later worker overturned a small-sample win.</p>
+      </article>
+      <article>
+        <span class="tag">Residual Matrix Transformer</span>
+        <h4>Compounding across whole runs</h4>
+        <p>Seeded with the best models from three earlier, independent runs (about 220 research-hours), a new swarm combined them, adding one run's head router and another's deeper stack, and lowered the inherited best loss from 2.909 to 2.898.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="takeaways">
+  <div class="text rv">
+    <h2>Takeaways</h2>
+    <ul class="plain">
+      <li><b>Inference compute can accumulate.</b> With persistent, branchable memory and explicit cross-branch links, independent agent episodes add up to a body of work that later episodes reuse, instead of a pile of disposable attempts.</li>
+      <li><b>Compounding looks different on different problems.</b> Program reconstruction folds most of the run into the final program. Proof solving uses earlier work mainly to verify and select. Research mixes both, and adds the recovery of ideas that first looked like failures.</li>
+      <li><b>Coordination can stay decentralized.</b> Without planners or roles, workers divided the work, avoided some duplication, and selected answers by themselves.</li>
+    </ul>
+    <p class="muted" style="font-size:16px"><b style="color:var(--ink-2)">Limitations.</b> Our dependency and trace analyses show that workers read, reuse and build on earlier work, but they do not isolate how much each reused piece contributes to performance. ProgramBench results use a 50-task subset; the perfect proof score comes from a single run; and the research comparisons are not matched on every axis (for example, NanoChat starting points and GPU allocations differ). Persistent collaboration also has costs: input tokens grow as the repository grows, and redundant episodes still use compute.</p>
+    <p>A natural next step is to train agents inside this kind of environment, rewarding contributions whose value only shows up through what other agents later build on them, so that agents learn to advance a shared process of discovery and not only to finish their own episode.</p>
+  </div>
+</section>
+
+<section id="cite">
+  <div class="text rv">
+    <h2 style="font-size:22px">Citation</h2>
+<pre class="bib">@article{shah2026gitswarm,
+  title   = {GitSwarm: Decentralized Compounding Inference},
+  author  = {Shah, Vedant and Samanta, Ankur and Dahal, Paras and Plekhanov, Mikhail
+             and Wu, Carole-Jean and Yih, Scott and Munos, Remi and Fergus, Rob
+             and Foerster, Jakob and Salakhutdinov, Ruslan and Arora, Sanjeev
+             and Weston, Jason and Courville, Aaron and Goyal, Anirudh},
+  journal = {arXiv preprint arXiv:2610.04862},
+  year    = {2026}
+}</pre>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="text">Correspondence: Vedant Shah (vedantshah2012@gmail.com), Anirudh Goyal (agi@meta.com). All figures are drawn from the data in the paper.</div>
+</footer>
+
+<script>
+/*__DATA__*/
+</script>
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>
